@@ -15,6 +15,8 @@ from omegaconf import OmegaConf
 from torch import Tensor
 from torch.utils.data import DataLoader, TensorDataset
 
+from gordon.pure_lightning import SimpleRegressor
+
 
 class MultiplicationAdapterStrategy(adapter_mixin_strategies.AbstractAdapterStrategy):
     """Adapter strategy that multiplies input and adapter output."""
@@ -23,7 +25,13 @@ class MultiplicationAdapterStrategy(adapter_mixin_strategies.AbstractAdapterStra
         super().__init__()
         self.scale = scaling_factor
 
-    def forward(self, input: torch.Tensor, adapter: torch.nn.Module, *, module):
+    def forward(
+        self,
+        input: torch.Tensor,
+        adapter: torch.nn.Module,
+        *,
+        module: "adapter_mixins.AdapterModuleMixin",
+    ):
         adapter_out = adapter(input)
         return self.scale * (input * adapter_out)
 
@@ -34,7 +42,8 @@ class MultiplicationAdapterStrategyConfig:
     _target_: str = f"{MultiplicationAdapterStrategy.__module__}.{MultiplicationAdapterStrategy.__name__}"
 
 
-class MultiplicativeAdapter(torch.nn.Module, AdapterModuleUtil):
+class SimpleRegressorAdapter(SimpleRegressor, AdapterModuleUtil):
+    # class MultiplicativeAdapter(torch.nn.Module, AdapterModuleUtil):
     """A simple multiplicative adapter."""
 
     def __init__(
@@ -45,33 +54,20 @@ class MultiplicativeAdapter(torch.nn.Module, AdapterModuleUtil):
         adapter_strategy: MultiplicationAdapterStrategy = None,
     ):
         super().__init__()
-        self.size = size
-        layers = []
-        layers.append(torch.nn.Linear(size, hidden_dim, bias=False))
-        layers.append(torch.nn.ReLU())
-        for _ in range(num_layers - 2):
-            layers.append(torch.nn.Linear(hidden_dim, hidden_dim, bias=False))
-            layers.append(torch.nn.ReLU())
-        layers.append(torch.nn.Linear(hidden_dim, size, bias=False))
-        layers.append(torch.nn.Sigmoid())
-        self.model = torch.nn.Sequential(*layers)
-        self.setup_adapter_strategy(adapter_strategy)
-        self.reset_parameters()
 
-    def forward(self, x):
-        return self.model(x)
+        
+
+        # Prepare the adapter strategy
+        self.setup_adapter_strategy(adapter_strategy)
+
+        # Initialize the weights
+        self.reset_parameters(self)
 
     def reset_parameters(self):
         # Initialize so that the adapter outputs ones at start (multiplicative identity)
         with torch.no_grad():
-            for i, layer in enumerate(self.model):
-                if isinstance(layer, torch.nn.Linear):
-                    torch.nn.init.zeros_(layer.weight)
-            # Set the last layer's bias (if any) so that sigmoid outputs 1.0
-            if isinstance(self.model[-2], torch.nn.Linear):
-                # Set bias so sigmoid(bias) = 1 => bias = inf, but use a large value
-                if self.model[-2].bias is not None:
-                    self.model[-2].bias.fill_(10.0)
+            self.model[0].weight = torch.nn.Parameter(torch.eye(self.size))
+            self.model[-1].weight = torch.nn.Parameter(torch.eye(self.size))
 
     def get_default_strategy_config(self):
         return MultiplicationAdapterStrategyConfig()

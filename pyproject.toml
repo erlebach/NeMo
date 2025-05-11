@@ -53,5 +53,5 @@ dependencies = [
 ]
 
 [tool.setuptools]
-packages=["nemo"]
+packages=["nemo", "gordon"]
 package-dir={"" = "."}
