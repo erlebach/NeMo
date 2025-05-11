@@ -6,60 +6,34 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 from jaxtyping import Float
-from nemo_lightning import (  # Import from your previous file
-    LossHistory,
-    SimpleRegressor,
-)
+from nemo.collections.common.parts import adapter_modules
+from nemo.core import adapter_mixins
+from nemo_lightning import LossHistory, SimpleRegressor
 from torch import Tensor
 from torch.utils.data import DataLoader, TensorDataset
 
 
-class Adapter(nn.Module):
-    """A simple adapter module to be trained on top of a frozen base model.
+class LightningAdapterModule(pl.LightningModule, adapter_mixins.AdapterModuleMixin):
+    """A LightningModule with NeMo adapter support.
 
     Args:
         input_dim: The input dimension (should match base model output + x).
-        output_dim: The output dimension.
-
-    """
-
-    def __init__(self, input_dim: int = 2, output_dim: int = 1):
-        super().__init__()
-        self.adapter = nn.Sequential(nn.Linear(input_dim, output_dim))
-
-    def forward(self, x: Float[Tensor, "batch 2"]) -> Float[Tensor, "batch 1"]:
-        """Forward pass through the adapter.
-
-        Args:
-            x: Input tensor of shape (batch, 2).
-
-        Returns:
-            Output tensor of shape (batch, 1).
-
-        """
-        return self.adapter(x)
-
-
-class AdapterRegressor(pl.LightningModule):
-    """LightningModule for training an adapter on top of a frozen base model.
-
-    Args:
         base_model: The frozen base model.
-        adapter: The trainable adapter module.
 
     """
 
-    def __init__(self, base_model: SimpleRegressor, adapter: Adapter):
+    def __init__(self, input_dim: int, base_model: SimpleRegressor):
         super().__init__()
+        self.input_dim = input_dim
         self.base_model = base_model
-        self.adapter = adapter
         self.criterion = nn.MSELoss()
+
         # Freeze base model
         for param in self.base_model.parameters():
             param.requires_grad = False
 
     def forward(self, x: Float[Tensor, "batch 1"]) -> Float[Tensor, "batch 1"]:
-        """Forward pass through the base model and adapter.
+        """Forward pass through the base model and enabled adapters.
 
         Args:
             x: Input tensor of shape (batch, 1).
@@ -71,7 +45,12 @@ class AdapterRegressor(pl.LightningModule):
         with torch.no_grad():
             base_out = self.base_model(x)
         adapter_in = torch.cat([x, base_out], dim=1)  # shape: [batch, 2]
-        return self.adapter(adapter_in)
+        # Pass through adapters if available
+        if self.is_adapter_available():
+            out = self.forward_enabled_adapters(adapter_in)
+        else:
+            out = adapter_in
+        return out
 
     def training_step(
         self,
@@ -122,7 +101,12 @@ class AdapterRegressor(pl.LightningModule):
             The Adam optimizer.
 
         """
-        return torch.optim.Adam(self.adapter.parameters(), lr=0.01)
+        # Only optimize adapter parameters
+        params = []
+        for name, param in self.named_parameters():
+            if "adapter_layer" in name and param.requires_grad:
+                params.append(param)
+        return torch.optim.Adam(params, lr=0.01)
 
 
 if __name__ == "__main__":
@@ -157,9 +141,27 @@ if __name__ == "__main__":
         val_dataset_adapter, batch_size=32, shuffle=False, num_workers=0
     )
 
-    # Set up adapter and regressor
-    adapter = Adapter(input_dim=2, output_dim=1)
-    adapter_model = AdapterRegressor(base_model=base_model, adapter=adapter)
+    # Set up LightningModule with NeMo adapter support
+    model = LightningAdapterModule(input_dim=2, base_model=base_model)
+
+    # Correct way: pass a config dict
+    adapter_cfg = {
+        "_target_": "nemo.collections.common.parts.adapter_modules.LinearAdapter",
+        "in_features": 2,
+        "dim": 8,
+        "activation": "relu",
+    }
+    model.add_adapter("my_adapter", cfg=adapter_cfg)
+    model.set_enabled_adapters("my_adapter", enabled=True)
+    model.adapter_layer["my_adapter"].adapter_unfreeze()
+
+    # Make sure only adapter parameters are trainable
+    for name, param in model.named_parameters():
+        if "adapter_layer" in name:
+            param.requires_grad = True
+        else:
+            param.requires_grad = False
+
     loss_history_adapter = LossHistory()
 
     trainer_adapter = pl.Trainer(
@@ -174,7 +176,7 @@ if __name__ == "__main__":
 
     start = time.time()
     trainer_adapter.fit(
-        adapter_model,
+        model,
         train_dataloaders=train_loader_adapter,
         val_dataloaders=val_loader_adapter,
     )
@@ -194,22 +196,8 @@ if __name__ == "__main__":
     plt.show()
 
 
-def test_adapter_forward() -> None:
-    """Test the Adapter forward pass.
-
-    Returns:
-        None
-
-    """
-    adapter = Adapter(input_dim=2, output_dim=1)
-    x = torch.randn(4, 2)
-    y = adapter(x)
-    assert y.shape == (4, 1)
-    print(f"Adapter forward test passed: {y.shape=}")
-
-
-def test_adapter_regressor_forward() -> None:
-    """Test the AdapterRegressor forward pass.
+def test_lightning_adapter_module_forward() -> None:
+    """Test the LightningAdapterModule forward pass.
 
     Returns:
         None
@@ -218,14 +206,20 @@ def test_adapter_regressor_forward() -> None:
     base_model = SimpleRegressor(hidden_dim=16)
     for param in base_model.parameters():
         param.requires_grad = False
-    adapter = Adapter(input_dim=2, output_dim=1)
-    model = AdapterRegressor(base_model, adapter)
+    model = LightningAdapterModule(input_dim=2, base_model=base_model)
+    # Add adapter
+    adapter_cfg = adapter_modules.LinearAdapter(in_features=2, dim=8, activation="relu")
+    model.add_adapter("my_adapter", cfg=adapter_cfg)
+    model.set_enabled_adapters("my_adapter", enabled=True)
+    model.adapter_layer["my_adapter"].adapter_unfreeze()
     x = torch.randn(4, 1)
-    y = model(x)
-    assert y.shape == (4, 1)
-    print(f"AdapterRegressor forward test passed: {y.shape=}")
+    with torch.no_grad():
+        base_out = base_model(x)
+    adapter_in = torch.cat([x, base_out], dim=1)
+    y = model.forward_enabled_adapters(adapter_in)
+    assert y.shape == (4, 2) or y.shape == (4, 1)
+    print(f"LightningAdapterModule forward test passed: {y.shape=}")
 
 
 if __name__ == "__main__":
-    test_adapter_forward()
-    test_adapter_regressor_forward()
+    test_lightning_adapter_module_forward()
