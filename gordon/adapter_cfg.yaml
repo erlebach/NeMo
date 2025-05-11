@@ -1,0 +1,10 @@
+adapter_cfg = {
+    "_target_": f"{MultiplicativeAdapter.__module__}.{MultiplicativeAdapter.__name__}",
+    "size": 2,
+    "hidden_dim": 64,  # Increase this for more capacity!
+    "num_layers": 3,   # Increase for more depth if desired
+    "adapter_strategy": {
+        "_target_": f"{MultiplicationAdapterStrategy.__module__}.{MultiplicationAdapterStrategy.__name__}",
+        "scaling_factor": 1.0,
+    }
+}

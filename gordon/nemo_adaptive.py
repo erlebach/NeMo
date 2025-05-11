@@ -1,4 +1,5 @@
 import time
+from dataclasses import dataclass
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -7,7 +8,9 @@ import torch
 import torch.nn as nn
 from jaxtyping import Float
 from nemo.collections.common.parts import adapter_modules
+from nemo.collections.common.parts.adapter_modules import AdapterModuleUtil
 from nemo.core import adapter_mixins
+from nemo.core.classes.mixins import adapter_mixin_strategies
 from nemo_lightning import LossHistory, SimpleRegressor
 from torch import Tensor
 from torch.utils.data import DataLoader, TensorDataset
@@ -109,6 +112,53 @@ class LightningAdapterModule(pl.LightningModule, adapter_mixins.AdapterModuleMix
         return torch.optim.Adam(params, lr=0.01)
 
 
+class MultiplicationAdapterStrategy(adapter_mixin_strategies.AbstractAdapterStrategy):
+    """Adapter strategy that multiplies input and adapter output."""
+
+    def __init__(self, scaling_factor: float = 1.0):
+        super().__init__()
+        self.scale = scaling_factor
+
+    def forward(self, input: torch.Tensor, adapter: torch.nn.Module, *, module):
+        # f(x) = scale * (x * adapter(x))
+        adapter_out = adapter(input)
+        result = self.scale * (input * adapter_out)
+        return result
+
+
+@dataclass
+class MultiplicationAdapterStrategyConfig:
+    scaling_factor: float = 1.0
+    _target_: str = f"{MultiplicationAdapterStrategy.__module__}.{MultiplicationAdapterStrategy.__name__}"
+
+
+class MultiplicativeAdapter(nn.Module):
+    def __init__(self, input_dim: int, hidden_dim: int = 8, num_layers: int = 2):
+        super().__init__()
+        layers = []
+        layers.append(nn.Linear(input_dim, hidden_dim))
+        layers.append(nn.ReLU())
+        for _ in range(num_layers - 2):
+            layers.append(nn.Linear(hidden_dim, hidden_dim))
+            layers.append(nn.ReLU())
+        layers.append(nn.Linear(hidden_dim, input_dim))
+        layers.append(nn.Sigmoid())
+        self.adapter = nn.Sequential(*layers)
+
+    def forward(self, x: Float[Tensor, "batch d"]) -> Float[Tensor, "batch d"]:
+        scale = self.adapter(x)
+        return x * scale
+
+
+@dataclass
+class MultiplicativeAdapterConfig:
+    size: int
+    adapter_strategy: MultiplicationAdapterStrategyConfig = None
+    _target_: str = (
+        f"{MultiplicativeAdapter.__module__}.{MultiplicativeAdapter.__name__}"
+    )
+
+
 if __name__ == "__main__":
     # Load the trained base model
     base_model = SimpleRegressor(hidden_dim=16)
@@ -146,14 +196,16 @@ if __name__ == "__main__":
 
     # Correct way: pass a config dict
     adapter_cfg = {
-        "_target_": "nemo.collections.common.parts.adapter_modules.LinearAdapter",
-        "in_features": 2,
-        "dim": 8,
-        "activation": "relu",
+        "_target_": f"{MultiplicativeAdapter.__module__}.{MultiplicativeAdapter.__name__}",
+        "size": 2,  # input_dim
+        "adapter_strategy": {
+            "_target_": f"{MultiplicationAdapterStrategy.__module__}.{MultiplicationAdapterStrategy.__name__}",
+            "scaling_factor": 1.0,
+        },
     }
-    model.add_adapter("my_adapter", cfg=adapter_cfg)
-    model.set_enabled_adapters("my_adapter", enabled=True)
-    model.adapter_layer["my_adapter"].adapter_unfreeze()
+    model.add_adapter("my_multiplicative_adapter", cfg=adapter_cfg)
+    model.set_enabled_adapters("my_multiplicative_adapter", enabled=True)
+    model.adapter_layer["my_multiplicative_adapter"].adapter_unfreeze()
 
     # Make sure only adapter parameters are trainable
     for name, param in model.named_parameters():
