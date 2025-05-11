@@ -1,16 +1,16 @@
-import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader, TensorDataset
+import time
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pytorch_lightning as pl
-import matplotlib.pyplot as plt
-import time
-from jaxtyping import Float, Int  # Jaxtyping for type hints
 import torch
-import numpy as np
-from torch import Tensor
-from nemo.core.neural_types import NeuralType, AxisType, RegressionValuesType
+import torch.nn as nn
+from jaxtyping import Float, Int  # Jaxtyping for type hints
 from nemo.core import NeuralModule
+from nemo.core.neural_types import AxisType, NeuralType, RegressionValuesType
+from torch import Tensor
+from torch.utils.data import DataLoader, TensorDataset
+
 
 class SimpleRegressor(NeuralModule, pl.LightningModule):
     """A simple feedforward regressor using PyTorch Lightning.
@@ -41,7 +41,11 @@ class SimpleRegressor(NeuralModule, pl.LightningModule):
         """
         return self.net(x)
 
-    def training_step(self, batch: tuple[Float[Tensor, "batch 1"], Float[Tensor, "batch 1"]], batch_idx: int) -> Float[Tensor, ""]:
+    def training_step(
+        self,
+        batch: tuple[Float[Tensor, "batch 1"], Float[Tensor, "batch 1"]],
+        batch_idx: int,
+    ) -> Float[Tensor, ""]:
         """Performs a training step.
 
         Args:
@@ -55,10 +59,14 @@ class SimpleRegressor(NeuralModule, pl.LightningModule):
         x, y = batch
         y_hat = self(x)
         loss = self.criterion(y_hat, y)
-        self.log('train_loss', loss, prog_bar=False, on_epoch=True)
+        self.log("train_loss", loss, prog_bar=False, on_epoch=True)
         return loss
 
-    def validation_step(self, batch: tuple[Float[Tensor, "batch 1"], Float[Tensor, "batch 1"]], batch_idx: int) -> Float[Tensor, ""]:
+    def validation_step(
+        self,
+        batch: tuple[Float[Tensor, "batch 1"], Float[Tensor, "batch 1"]],
+        batch_idx: int,
+    ) -> Float[Tensor, ""]:
         """Performs a validation step.
 
         Args:
@@ -72,7 +80,7 @@ class SimpleRegressor(NeuralModule, pl.LightningModule):
         x, y = batch
         y_hat = self(x)
         loss = self.criterion(y_hat, y)
-        self.log('val_loss', loss, prog_bar=False, on_epoch=True)
+        self.log("val_loss", loss, prog_bar=False, on_epoch=True)
         return loss
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
@@ -86,11 +94,12 @@ class SimpleRegressor(NeuralModule, pl.LightningModule):
 
     @property
     def input_types(self):
-        return {"x": NeuralType(('B', 'T'), RegressionValuesType())}
+        return {"x": NeuralType(("B", "T"), RegressionValuesType())}
 
     @property
     def output_types(self):
-        return {"y": NeuralType(('B', 'T'), RegressionValuesType())}
+        return {"y": NeuralType(("B", "T"), RegressionValuesType())}
+
 
 # Callback to store losses for plotting
 class LossHistory(pl.Callback):
@@ -101,7 +110,9 @@ class LossHistory(pl.Callback):
         self.train_losses: list[float] = []
         self.val_losses: list[float] = []
 
-    def on_train_epoch_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
+    def on_train_epoch_end(
+        self, trainer: pl.Trainer, pl_module: pl.LightningModule
+    ) -> None:
         """Stores the training loss at the end of each epoch.
 
         Args:
@@ -113,7 +124,9 @@ class LossHistory(pl.Callback):
         if train_loss is not None:
             self.train_losses.append(train_loss.cpu().item())
 
-    def on_validation_epoch_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
+    def on_validation_epoch_end(
+        self, trainer: pl.Trainer, pl_module: pl.LightningModule
+    ) -> None:
         """Stores the validation loss at the end of each epoch.
 
         Args:
@@ -125,8 +138,9 @@ class LossHistory(pl.Callback):
         if val_loss is not None:
             self.val_losses.append(val_loss.cpu().item())
 
-#----------------------------------------------------------------------
-if __name__ == '__main__':
+
+# ----------------------------------------------------------------------
+if __name__ == "__main__":
     # Set seed for reproducibility
     # pl.seed_everything(42, workers=True)
 
@@ -135,18 +149,24 @@ if __name__ == '__main__':
     n = 1000
     m = 200
 
-    data = np.load('sine_data.npz')
-    x_train = data['x_train']
-    y_train = data['y_train']
-    x_val = data['x_val']
-    y_val = data['y_val']
+    data = np.load("sine_data.npz")
+    x_train = data["x_train"]
+    y_train = data["y_train"]
+    x_val = data["x_val"]
+    y_val = data["y_val"]
 
-    train_dataset = TensorDataset(torch.tensor(x_train, dtype=torch.float32),
-                                 torch.tensor(y_train, dtype=torch.float32))
-    val_dataset = TensorDataset(torch.tensor(x_val, dtype=torch.float32),
-                               torch.tensor(y_val, dtype=torch.float32))
+    train_dataset = TensorDataset(
+        torch.tensor(x_train, dtype=torch.float32),
+        torch.tensor(y_train, dtype=torch.float32),
+    )
+    val_dataset = TensorDataset(
+        torch.tensor(x_val, dtype=torch.float32),
+        torch.tensor(y_val, dtype=torch.float32),
+    )
 
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=False, num_workers=0)
+    train_loader = DataLoader(
+        train_dataset, batch_size=32, shuffle=False, num_workers=0
+    )
     val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False, num_workers=0)
 
     model = SimpleRegressor(hidden_dim=16)
@@ -157,9 +177,9 @@ if __name__ == '__main__':
         logger=False,
         enable_checkpointing=False,
         enable_progress_bar=False,
-        accelerator='cpu',
+        accelerator="cpu",
         devices=1,
-        callbacks=[loss_history]
+        callbacks=[loss_history],
     )
 
     start = time.time()
@@ -167,14 +187,18 @@ if __name__ == '__main__':
     end = time.time()
     print(f"Training completed in {end - start:.2f} seconds")
 
+    # Save the trained model weights for later use (e.g., for adapters)
+    torch.save(model.state_dict(), "base_model.pt")
+    print("Base model checkpoint saved as 'base_model.pt'.")
+
     # Plot loss curves
     print(f"{loss_history.train_losses[0:5]=}")
     print(f"{loss_history.val_losses[0:5]=}")
-    plt.plot(loss_history.train_losses, label='Train Loss')
-    plt.plot(loss_history.val_losses[1:], label='Val Loss')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
+    plt.plot(loss_history.train_losses, label="Train Loss")
+    plt.plot(loss_history.val_losses[1:], label="Val Loss")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
     plt.legend()
-    plt.title('Loss Curves')
-    plt.savefig('loss_pure_lightning.png')
+    plt.title("Loss Curves")
+    plt.savefig("loss_pure_lightning.png")
     plt.show()
