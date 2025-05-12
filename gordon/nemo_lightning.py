@@ -27,7 +27,9 @@ class SimpleRegressor(NeuralModule, pl.LightningModule):
             nn.Tanh(),
             nn.Linear(hidden_dim, 1),
         )
+        self.model = self.net
         self.criterion = nn.MSELoss()
+        self.is_adapter_available = False
 
     def forward(self, x: Float[Tensor, "batch 1"]) -> Float[Tensor, "batch 1"]:
         """Forward pass through the network.
@@ -39,7 +41,21 @@ class SimpleRegressor(NeuralModule, pl.LightningModule):
             Output tensor of shape (batch, 1).
 
         """
-        return self.net(x)
+        print(f"Module input shape: {x.shape}")
+        with torch.no_grad():
+            base_out = self.net(x)
+        print(f"Base model output shape: {base_out.shape=}")
+
+        # adapter_in = torch.cat([x, base_out], dim=1)
+        # print(f"base: Combined input shape: {adapter_in.shape}")
+
+        # if self.is_adapter_available:
+        #     out = self.forward_enabled_adapters(adapter_in)
+        # else:
+        #     out = adapter_in
+
+        out = base_out
+        return out
 
     def training_step(
         self,

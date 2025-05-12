@@ -1,7 +1,6 @@
-_target_: new_nemo_adaptive.MultiplicativeAdapter
-size: 2
-hidden_dim: 64
-num_layers: 3
+_target_: new_nemo_adaptive_parallel.CustomAdapter
+size: 1
+hidden_dim: 4
 adapter_strategy:
-  _target_: new_nemo_adaptive.MultiplicationAdapterStrategy
+  _target_: new_nemo_adaptive_parallel.ParallelInputAdapterStrategy
   scaling_factor: 1.0
