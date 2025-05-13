@@ -10,15 +10,18 @@ from torch import Tensor
 
 
 class LightningAdapterModule(pl.LightningModule, adapter_mixins.AdapterModuleMixin):
-    """A LightningModule with NeMo adapter support."""
+    """A LightningModule with NeMo adapter support.
+
+    Adapter(s) are specified externally.
+    """
 
     def __init__(self, input_dim: int, base_model: SimpleRegressor):
         super().__init__()
         self.input_dim = input_dim
         self.base_model = base_model
         self.criterion = nn.MSELoss()
-        for param in self.base_model.parameters():
-            param.requires_grad = False
+        #for param in self.base_model.parameters():
+            #param.requires_grad = False
 
     def forward(self, x: Float[Tensor, "batch 1"]) -> Float[Tensor, "batch 1"]:
         with torch.no_grad():

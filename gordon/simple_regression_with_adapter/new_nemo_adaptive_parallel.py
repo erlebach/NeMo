@@ -13,8 +13,6 @@ from torch.utils.data import DataLoader, TensorDataset
 from gordon.simple_regression_with_adapter.custom_adapter import (
     CustomAdapter,
 )
-
-# from gordon.simple_regression_with_adapter.lightning_adapter import LightningAdapterModule
 from gordon.simple_regression_with_adapter.lightning_adapter import (
     LightningAdapterModule,
 )
@@ -36,7 +34,8 @@ from gordon.simple_regression_with_adapter.parallel_adapter_strategy import (
 
 # ----------------------------------------------------------------------------------------
 if __name__ == "__main__":
-    # Get configuration from model_configuration.py
+    # ==> Get configuration from model_configuration.py
+
     cfg = OmegaConf.create(OmegaConf.to_container(model_config, resolve=True))
     print("Using model configuration:")
     print(OmegaConf.to_yaml(cfg))
@@ -49,6 +48,8 @@ if __name__ == "__main__":
     base_model.load_state_dict(torch.load("base_model.pt"))
     for param in base_model.parameters():
         param.requires_grad = False
+
+    # ==> Handle data
 
     # Load the original data
     data = np.load("sine_data.npz")
@@ -75,27 +76,22 @@ if __name__ == "__main__":
         val_dataset_adapter, batch_size=32, shuffle=False, num_workers=0
     )
 
-    # Instantiate the LightningModule
+    # Use the custom adapter config from model_configuration.py
+    custom_adapter_config = cfg.model.custom_adapter
+    # Set adapter_strategy to None initially (we'll set it later)
+    custom_adapter_config.adapter_strategy = None
+
+    # First add the adapter with a null strategy (2nd arg required)
+    print(f"Adding adapter with config: {custom_adapter_config}")
+
+    # Setup LightningAdapterModule
     model = LightningAdapterModule(input_dim=2, base_model=base_model)
-
-    # Create a custom adapter config for add_adapter
-    adapter_config = OmegaConf.create(
-        {
-            "_target_": "gordon.simple_regression_with_adapter.custom_adapter.CustomAdapter",
-            "size": 1,
-            "hidden_dim": hidden_dim,
-            "adapter_strategy": None,  # We'll set this to None initially
-            "first_linear_bias": True,
-            "second_linear_bias": True,
-            "weight_init_method": "zeros",
-            "activation_type": "tanh",
-        }
-    )
-
-    # First add the adapter with a null strategy
-    model.add_adapter("my_adapter", cfg=adapter_config)
+    model.add_adapter("my_adapter", cfg=custom_adapter_config)
+    print(f"Model: {model}")
 
     # Now create and set the strategy
+    # The strategy is set in LightningAdapterModule.setup_adapter_strategy()
+    # I need a configuration ofor this
     strategy_config = ParallelInputAdapterStrategyConfig(
         scaling_factor=1.0, in_features=2, out_features=1, bias=True
     )
@@ -161,7 +157,7 @@ if __name__ == "__main__":
     # Print the configuration parameters used
     print("Adapter Configuration Parameters:")
     print("-" * 30)
-    print(f"Size: {adapter_config.size}")
+    # print(f"Size: {adapter_config.size}")
     print(f"Hidden dimension: {adapter_config.hidden_dim}")
     print(f"First linear bias: {adapter_config.first_linear_bias}")
     print(f"Second linear bias: {adapter_config.second_linear_bias}")

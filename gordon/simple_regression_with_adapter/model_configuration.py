@@ -41,8 +41,19 @@ custom_adapter_config = OmegaConf.create(
     }
 )
 
+parallel_input_adapter_strategy = OmegaConf.create(
+    {
+        "_target_": get_class_path(ParallelInputAdapterStrategy),
+        "in_features": 2,
+        "out_features": 1, 
+        "bias": True,
+        "scaling_factor": 1,
+    }
+)
+
 
 model_config.model.simple_regressor = simple_regressor_config
 model_config.model.custom_adapter = custom_adapter_config
+model_config.model.parallel_input_adapter_strategy = parallel_input_adapter_strategy
 
 # ----------------------------------------------------------------------
