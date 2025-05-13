@@ -12,7 +12,6 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from gordon.simple_regression_with_adapter.custom_adapter import (
     CustomAdapter,
-    SimpleRegressorAdapter,
 )
 
 # from gordon.simple_regression_with_adapter.lightning_adapter import LightningAdapterModule

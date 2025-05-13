@@ -2,7 +2,6 @@ from omegaconf import DictConfig, OmegaConf
 
 from gordon.simple_regression_with_adapter.custom_adapter import (
     CustomAdapter,
-    SimpleRegressorAdapter,
 )
 from gordon.simple_regression_with_adapter.parallel_adapter_strategy import (
     ParallelInputAdapterStrategy,
@@ -16,7 +15,7 @@ def get_class_path(cls):
 
 common_config = OmegaConf.create(
     {
-        "n_layers": 2,
+        "n_layers": 1,
         # I should try ot set this from the command line or from yaml file, leaving
         # it set to 32 in this file
         "hidden_dim": 16,
@@ -25,6 +24,7 @@ common_config = OmegaConf.create(
 
 model_config = OmegaConf.create({"model": common_config})
 
+# Input data the conventional way
 simple_regressor_config = OmegaConf.create({})
 
 # How to set the ParallelInputAdapterStrategy
@@ -41,17 +41,8 @@ custom_adapter_config = OmegaConf.create(
     }
 )
 
-simple_regressor_adapter_config = OmegaConf.create(
-    {
-        "_target_": get_class_path(SimpleRegressorAdapter),
-        "size": 1,
-        "hidden_dim": "${model.hidden_dim}",
-        "adapter_strategy": None,
-    }
-)
 
 model_config.model.simple_regressor = simple_regressor_config
-model_config.model.simple_regressor_adapter = simple_regressor_adapter_config
 model_config.model.custom_adapter = custom_adapter_config
 
 # ----------------------------------------------------------------------
