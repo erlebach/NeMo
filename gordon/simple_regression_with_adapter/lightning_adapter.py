@@ -5,7 +5,7 @@ from jaxtyping import Float
 from nemo.core import adapter_mixins
 
 # Load the trained base model
-from nemo_lightning import SimpleRegressor
+from gordon.simple_regression_with_adapter.nemo_lightning import SimpleRegressor
 from torch import Tensor
 
 

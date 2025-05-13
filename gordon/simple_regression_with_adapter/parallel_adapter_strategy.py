@@ -14,7 +14,7 @@ from nemo.core import adapter_mixins
 from nemo.core.classes.mixins import adapter_mixin_strategies
 
 # Load the trained base model
-from nemo_lightning import LossHistory, SimpleRegressor
+from gordon.simple_regression_with_adapter.nemo_lightning import LossHistory, SimpleRegressor
 from omegaconf import DictConfig, OmegaConf
 from torch import Tensor
 from torch.utils.data import DataLoader, TensorDataset
