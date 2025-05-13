@@ -7,4 +7,5 @@ from .parallel_adapter_strategy import (
 )
 from .lightning_adapter import LightningAdapterModule
 from .nemo_lightning import SimpleRegressor, LossHistory
-from .custom_adapter import CustomAdapter, SimpleRegressorAdapter
+from .custom_adapter import CustomAdapter
+# from .custom_adapter import SimpleRegressorAdapter

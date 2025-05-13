@@ -12,12 +12,15 @@ from nemo.collections.common.parts import adapter_modules
 from nemo.collections.common.parts.adapter_modules import AdapterModuleUtil
 from nemo.core import adapter_mixins
 from nemo.core.classes.mixins import adapter_mixin_strategies
-
-# Load the trained base model
-from gordon.simple_regression_with_adapter.nemo_lightning import LossHistory, SimpleRegressor
 from omegaconf import DictConfig, OmegaConf
 from torch import Tensor
 from torch.utils.data import DataLoader, TensorDataset
+
+# Load the trained base model
+from gordon.simple_regression_with_adapter.nemo_lightning import (
+    LossHistory,
+    SimpleRegressor,
+)
 
 
 class ParallelInputAdapterStrategy(adapter_mixin_strategies.AbstractAdapterStrategy):
@@ -41,6 +44,8 @@ class ParallelInputAdapterStrategy(adapter_mixin_strategies.AbstractAdapterStrat
             bias: Whether to include bias in the linear layer.
         """
         super().__init__()
+        print(f"ParallelInputAdapterStrategy init, scaling_factor: {scaling_factor}")
+        print(f"in_features: {in_features}, out_features: {out_features}, bias: {bias}")
         self.scale = scaling_factor
         self.linear = torch.nn.Linear(in_features, out_features, bias=bias)
 
