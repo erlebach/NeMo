@@ -1,0 +1,50 @@
+# adapter_cfg.yaml - Fixed configuration that matches the CustomAdapter parameters
+_target_: gordon.simple_regression_with_adapter.new_nemo_adaptive_parallel.CustomAdapter
+size: 1
+hidden_dim: 8
+first_linear_bias: true
+second_linear_bias: true
+weight_init_method: "zeros"
+activation_type: "tanh"
+
+adapter_strategy:
+  _target_: gordon.simple_regression_with_adapter.parallel_adapter_strategy.ParallelInputAdapterStrategy
+  scaling_factor: 1.0
+  in_features: 2
+  out_features: 1
+  bias: true
+
+## Model configuration - Linear layers and activation function
+#model_config:
+  ## First linear layer configuration
+  #first_linear:
+    #in_features: 1  # Same as size
+    #out_features: 4  # Same as hidden_dim
+    #bias: true
+    ## Weight initialization
+    #weight_init: 
+      #method: "zeros"  # Sets all weights to 0.0 as in reset_parameters()
+  
+  ## Activation function
+  #activation: 
+    #type: "tanh"
+    
+#  # Second linear layer configuration
+#  second_linear:
+#    in_features: 4  # Same as hidden_dim
+#    out_features: 1  # Same as size
+#    bias: true
+#    # Weight initialization
+#    weight_init:
+#      method: "zeros"  # Sets all weights to 0.0 as in reset_parameters()
+#
+
+# Configuration for SimpleRegressorAdapter (if used instead of CustomAdapter)
+# Uncomment to use SimpleRegressorAdapter
+# _target_: gordon.simple_regression_with_adapter.new_nemo_adaptive_parallel.SimpleRegressorAdapter
+# size: 1
+# hidden_dim: 32
+# model_config:
+#   # Weight initialization for SimpleRegressorAdapter
+#   weight_init:
+#     method: "eye"  # Initialize with identity matrix
