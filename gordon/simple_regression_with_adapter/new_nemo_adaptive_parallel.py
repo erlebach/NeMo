@@ -10,14 +10,44 @@ from nemo.collections.common.parts.adapter_modules import AdapterModuleUtil
 from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader, TensorDataset
 
-from gordon.lightning_adapter import LightningAdapterModule
+# from gordon.simple_regression_with_adapter.lightning_adapter import LightningAdapterModule
+from gordon.simple_regression_with_adapter.lightning_adapter import (
+    LightningAdapterModule,
+)
 
 # Load the trained base model
-from gordon.nemo_lightning import LossHistory, SimpleRegressor
-from gordon.parallel_adapter_strategy import (
+from gordon.simple_regression_with_adapter.nemo_lightning import (
+    LossHistory,
+    SimpleRegressor,
+)
+from gordon.simple_regression_with_adapter.parallel_adapter_strategy import (
     ParallelInputAdapterStrategy,
     ParallelInputAdapterStrategyConfig,
 )
+
+
+# In new_nemo_adaptive_parallel.py - change this part
+def load_adapter_config():
+    # Load config template
+    adapter_cfg_template = OmegaConf.load("adapter_template.yaml")
+
+    # Inject the current module path at runtime
+    current_module_path = "gordon.simple_regression_with_adapter"
+    adapter_cfg = OmegaConf.create({"module_path": current_module_path})
+    # Merge configs
+    final_cfg = OmegaConf.merge(adapter_cfg, adapter_cfg_template)
+    return final_cfg
+
+
+# # Load config template
+# adapter_cfg_template = OmegaConf.load("adapter_template.yaml")
+
+# # Inject the current module path at runtime
+# current_module_path = "gordon.simple_regression_with_adapter"  # Could get dynamically
+# adapter_cfg = OmegaConf.create(
+#     {"module_path": current_module_path, **adapter_cfg_template}
+# )
+# print(adapter_cfg)
 
 
 class CustomAdapter(nn.Module, AdapterModuleUtil):
@@ -86,6 +116,7 @@ class SimpleRegressorAdapter(SimpleRegressor, AdapterModuleUtil):
         return x  # Or some transformation of x
 
 
+# ----------------------------------------------------------------------
 if __name__ == "__main__":
     # What hidden dim is used? From argument or from adapter file?
     base_model = SimpleRegressor(hidden_dim=16)
@@ -122,6 +153,7 @@ if __name__ == "__main__":
     model = LightningAdapterModule(input_dim=2, base_model=base_model)
 
     # Parallel input adapter config with increased capacity
+    # adapter_cfg = load_adapter_config()
     adapter_cfg = OmegaConf.load("adapter_cfg.yaml")
     model.add_adapter("my_adapter", cfg=cast(DictConfig, adapter_cfg))
     model.set_enabled_adapters("my_adapter", enabled=True)
@@ -143,7 +175,7 @@ if __name__ == "__main__":
     loss_history_adapter = LossHistory()
 
     trainer_adapter = pl.Trainer(
-        max_epochs=10,
+        max_epochs=20,
         logger=False,
         enable_checkpointing=False,
         enable_progress_bar=False,
@@ -162,8 +194,8 @@ if __name__ == "__main__":
     print(f"Adapter training completed in {end - start:.2f} seconds")
 
     # Plot loss curves for adapter
-    print(f"{loss_history_adapter.train_losses[0:5]=}")
-    print(f"{loss_history_adapter.val_losses[0:5]=}")
+    print(f"{loss_history_adapter.train_losses[0:10]=}")
+    print(f"{loss_history_adapter.val_losses[0:10]=}")
     plt.plot(loss_history_adapter.train_losses, label="Adapter Train Loss")
     plt.plot(loss_history_adapter.val_losses[1:], label="Adapter Val Loss")
     plt.xlabel("Epoch")

@@ -42,6 +42,15 @@ class SimpleRegressor(NeuralModule, pl.LightningModule):
 
         """
         base_out = self.net(x)
+
+        # adapter_in = torch.cat([x, base_out], dim=1)
+        # print(f"base: Combined input shape: {adapter_in.shape}")
+
+        # if self.is_adapter_available:
+        #     out = self.forward_enabled_adapters(adapter_in)
+        # else:
+        #     out = adapter_in
+
         out = base_out
         return out
 
