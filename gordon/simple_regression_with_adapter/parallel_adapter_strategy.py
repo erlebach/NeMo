@@ -44,8 +44,8 @@ class ParallelInputAdapterStrategy(adapter_mixin_strategies.AbstractAdapterStrat
             bias: Whether to include bias in the linear layer.
         """
         super().__init__()
-        print(f"ParallelInputAdapterStrategy init, scaling_factor: {scaling_factor}")
-        print(f"in_features: {in_features}, out_features: {out_features}, bias: {bias}")
+        print(f"==> ParallelInputAdapterStrategy init, scaling_factor: {scaling_factor}")
+        print(f"    ParallelInputAdapterSrategy init, in_features: {in_features}, out_features: {out_features}, bias: {bias}")
         self.scale = scaling_factor
         self.linear = torch.nn.Linear(in_features, out_features, bias=bias)
 

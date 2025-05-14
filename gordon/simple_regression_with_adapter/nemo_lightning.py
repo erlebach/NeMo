@@ -5,9 +5,9 @@ import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-from jaxtyping import Float, Int  # Jaxtyping for type hints
+from jaxtyping import Float
 from nemo.core import NeuralModule
-from nemo.core.neural_types import AxisType, NeuralType, RegressionValuesType
+from nemo.core.neural_types import NeuralType, RegressionValuesType
 from torch import Tensor
 from torch.utils.data import DataLoader, TensorDataset
 
@@ -30,6 +30,7 @@ class SimpleRegressor(NeuralModule, pl.LightningModule):
         self.model = self.net
         self.criterion = nn.MSELoss()
         self.is_adapter_available = False
+        print(f"==> SimpleRegressor init, {hidden_dim=}")
 
     def forward(self, x: Float[Tensor, "batch 1"]) -> Float[Tensor, "batch 1"]:
         """Forward pass through the network.

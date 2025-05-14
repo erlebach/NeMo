@@ -1,18 +1,13 @@
-import os
+import sys
 import time
-from typing import Dict, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pytorch_lightning as pl
 import torch
-import torch.nn as nn
 from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader, TensorDataset
 
-from gordon.simple_regression_with_adapter.custom_adapter import (
-    CustomAdapter,
-)
 from gordon.simple_regression_with_adapter.lightning_adapter import (
     LightningAdapterModule,
 )
@@ -44,9 +39,20 @@ if __name__ == "__main__":
     hidden_dim = cfg.model.hidden_dim
 
     # Load the base model with configured hidden_dim
+    # I'd like to make sure the loaded model is consistent with SimpleRegressor.
+    # What is hidden_dim in the saved model is 16 and base_model was
+    # initialized with hidden_dim = 32? What is the accepted approach?  Ideally, I'd like hidden_dim
+    # to be overritten with the value from based_model.  How are mismatches avoided when everything is controlled
+    # via configuration files?  can I execute torch.load() from outside base model?
     base_model = SimpleRegressor(hidden_dim=hidden_dim)
-    base_model.load_state_dict(torch.load("base_model.pt"))
+    try:
+        base_model.load_state_dict(torch.load("base_model.pt"))
+    except Exception as e:
+        print("Model parameter mismatch when loading.")
+
+    # What is hidden_dim now, of SimpleRegression? o
     for param in base_model.parameters():
+        print(f"SimpleRegressor, {param.shape=}")
         param.requires_grad = False
 
     # ==> Handle data
@@ -78,32 +84,19 @@ if __name__ == "__main__":
 
     # Use the custom adapter config from model_configuration.py
     custom_adapter_config = cfg.model.custom_adapter
-    # Set adapter_strategy to None initially (we'll set it later)
-    custom_adapter_config.adapter_strategy = None
-
-    # First add the adapter with a null strategy (2nd arg required)
-    print(f"Adding adapter with config: {custom_adapter_config}")
+    # No need to set adapter_strategy to None anymore
+    # custom_adapter_config.adapter_strategy = None  # <-- Remove this line
 
     # Setup LightningAdapterModule
     model = LightningAdapterModule(input_dim=2, base_model=base_model)
     model.add_adapter("my_adapter", cfg=custom_adapter_config)
     print(f"Model: {model}")
 
-    # Now create and set the strategy
-    # The strategy is set in LightningAdapterModule.setup_adapter_strategy()
-    # I need a configuration ofor this
-    strategy_config = ParallelInputAdapterStrategyConfig(
-        scaling_factor=1.0, in_features=2, out_features=1, bias=True
-    )
-    adapter_strategy = ParallelInputAdapterStrategy(
-        scaling_factor=strategy_config.scaling_factor,
-        in_features=strategy_config.in_features,
-        out_features=strategy_config.out_features,
-        bias=strategy_config.bias,
-    )
-
-    # Manually set the adapter_strategy for the adapter
-    model.adapter_layer["my_adapter"].setup_adapter_strategy(adapter_strategy)
+    # No need to create and set the strategy manually anymore
+    # Remove these lines:
+    # strategy_config = ParallelInputAdapterStrategyConfig(...)
+    # adapter_strategy = ParallelInputAdapterStrategy(...)
+    # model.adapter_layer["my_adapter"].setup_adapter_strategy(adapter_strategy)
 
     # Enable the adapter
     model.set_enabled_adapters("my_adapter", enabled=True)

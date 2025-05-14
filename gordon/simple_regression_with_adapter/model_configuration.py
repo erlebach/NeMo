@@ -1,4 +1,4 @@
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 
 from gordon.simple_regression_with_adapter.custom_adapter import (
     CustomAdapter,
@@ -18,7 +18,7 @@ common_config = OmegaConf.create(
         "n_layers": 1,
         # I should try ot set this from the command line or from yaml file, leaving
         # it set to 32 in this file
-        "hidden_dim": 16,
+        "hidden_dim": 32,
     }
 )
 
@@ -33,27 +33,22 @@ custom_adapter_config = OmegaConf.create(
         "_target_": get_class_path(CustomAdapter),
         "size": 1,
         "hidden_dim": "${model.hidden_dim}",
-        "adapter_strategy": get_class_path(ParallelInputAdapterStrategy),
         "first_linear_bias": True,
         "second_linear_bias": True,
         "weight_init_method": "zeros",
         "activation_type": "tanh",
-    }
-)
-
-parallel_input_adapter_strategy = OmegaConf.create(
-    {
-        "_target_": get_class_path(ParallelInputAdapterStrategy),
-        "in_features": 2,
-        "out_features": 1, 
-        "bias": True,
-        "scaling_factor": 1,
+        "adapter_strategy": {
+            "_target_": get_class_path(ParallelInputAdapterStrategy),
+            "scaling_factor": 1.0,
+            "in_features": 2,
+            "out_features": 1,
+            "bias": True,
+        }
     }
 )
 
 
 model_config.model.simple_regressor = simple_regressor_config
 model_config.model.custom_adapter = custom_adapter_config
-model_config.model.parallel_input_adapter_strategy = parallel_input_adapter_strategy
 
 # ----------------------------------------------------------------------

@@ -3,10 +3,10 @@ import torch
 import torch.nn as nn
 from jaxtyping import Float
 from nemo.core import adapter_mixins
+from torch import Tensor
 
 # Load the trained base model
 from gordon.simple_regression_with_adapter.nemo_lightning import SimpleRegressor
-from torch import Tensor
 
 
 class LightningAdapterModule(pl.LightningModule, adapter_mixins.AdapterModuleMixin):
@@ -20,8 +20,13 @@ class LightningAdapterModule(pl.LightningModule, adapter_mixins.AdapterModuleMix
         self.input_dim = input_dim
         self.base_model = base_model
         self.criterion = nn.MSELoss()
-        #for param in self.base_model.parameters():
-            #param.requires_grad = False
+
+        print("==> LightningAdapterModule, input_dim: ", self.input_dim)
+        print("    LightningAdapterModule, base_model: ", self.base_model)
+        print("    LightningAdapterModule, criterion: ", self.criterion)
+
+        # for param in self.base_model.parameters():
+        # param.requires_grad = False
 
     def forward(self, x: Float[Tensor, "batch 1"]) -> Float[Tensor, "batch 1"]:
         with torch.no_grad():
