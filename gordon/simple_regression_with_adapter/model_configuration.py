@@ -47,6 +47,12 @@ custom_adapter_config = OmegaConf.create(
     }
 )
 
+multiblock_regressor_config = OmegaConf.create(
+{
+    
+}
+)
+
 
 model_config.model.simple_regressor = simple_regressor_config
 model_config.model.custom_adapter = custom_adapter_config
