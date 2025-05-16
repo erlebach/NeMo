@@ -423,6 +423,15 @@ class MultiBlockRegressorModel(ModelPT, adapter_mixins.AdapterModelPTMixin):
         # Setup adapters if needed
         self.setup_adapters()
 
+        # Setup dataloaders if configs are available
+        if hasattr(cfg, "model"):
+            if hasattr(cfg.model, "train_ds"):
+                self.setup_training_data(cfg.model.train_ds)
+            if hasattr(cfg.model, "validation_ds"):
+                self.setup_validation_data(cfg.model.validation_ds)
+            if hasattr(cfg.model, "test_ds"):
+                self.setup_test_data(cfg.model.test_ds)
+
     @property
     def input_types(self):
         return {"x": NeuralType(("B", "T"), RegressionValuesType())}
@@ -575,7 +584,7 @@ class MultiBlockRegressorModel(ModelPT, adapter_mixins.AdapterModelPTMixin):
 
             # Create and apply the LoRA adapter
             lora = MultiBlockRegressorLora(lora_config)
-            lora(self)
+            lora(self.regressor)
 
     def get_enabled_adapters(self):
         """Get the list of enabled adapters.
@@ -638,8 +647,82 @@ class MultiBlockRegressorModel(ModelPT, adapter_mixins.AdapterModelPTMixin):
         """
         return []
 
+    def train_dataloader(self):
+        """Return the training dataloader with better error handling."""
+        if not hasattr(self, "_train_dl") or self._train_dl is None:
+            if hasattr(self.cfg, "model") and hasattr(self.cfg.model, "train_ds"):
+                print(
+                    f"Setting up training dataloader from {self.cfg.model.train_ds.file_path}"
+                )
+                self.setup_training_data(self.cfg.model.train_ds)
+            else:
+                raise ValueError("No training data configuration found in model config")
 
-@hydra_runner(config_path="conf", config_name="multiblock_fixed_config")
+        if self._train_dl is None:
+            raise ValueError("Failed to create training dataloader")
+
+        return self._train_dl
+
+    def val_dataloader(self):
+        """Return the validation dataloader with better error handling."""
+        if not hasattr(self, "_validation_dl") or self._validation_dl is None:
+            if hasattr(self.cfg, "model") and hasattr(self.cfg.model, "validation_ds"):
+                print(
+                    f"Setting up validation dataloader from {self.cfg.model.validation_ds.file_path}"
+                )
+                self.setup_validation_data(self.cfg.model.validation_ds)
+            else:
+                raise ValueError(
+                    "No validation data configuration found in model config"
+                )
+
+        if self._validation_dl is None:
+            raise ValueError("Failed to create validation dataloader")
+
+        return self._validation_dl
+
+    def test_dataloader(self):
+        """Return the test dataloader with better error handling."""
+        if not hasattr(self, "_test_dl") or self._test_dl is None:
+            if hasattr(self.cfg, "model") and hasattr(self.cfg.model, "test_ds"):
+                print(
+                    f"Setting up test dataloader from {self.cfg.model.test_ds.file_path}"
+                )
+                self.setup_test_data(self.cfg.model.test_ds)
+            else:
+                raise ValueError("No test data configuration found in model config")
+
+        if self._test_dl is None:
+            raise ValueError("Failed to create test dataloader")
+
+        return self._test_dl
+
+    @classmethod
+    def restore_from(
+        cls,
+        restore_path,
+        trainer=None,
+        override_config_path=None,
+        map_location=None,
+        strict=True,
+    ):
+        """Override restore_from to properly handle config and dataloaders after restoration."""
+        # Call the parent restore_from method
+        model = super().restore_from(
+            restore_path=restore_path,
+            trainer=trainer,
+            override_config_path=override_config_path,
+            map_location=map_location,
+            strict=strict,
+        )
+
+        # Ensure the model knows it's been restored and needs to check dataloaders
+        model._dataloaders_initialized = False
+
+        return model
+
+
+@hydra_runner(config_path=".", config_name="multiblock_fixed_config")
 def main(cfg: DictConfig) -> None:
     """Main training function."""
     logging.info(f"Config:\n{OmegaConf.to_yaml(cfg)}")
@@ -662,8 +745,54 @@ def main(cfg: DictConfig) -> None:
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
 
-    # Create model
-    model = MultiBlockRegressorModel(cfg=cfg, trainer=trainer)
+    # Create model from checkpoint
+    model = MultiBlockRegressorModel.restore_from(
+        restore_path=cfg.model.restore_path, trainer=trainer
+    )
+
+    # Debug print
+    print(f"Model restored from: {cfg.model.restore_path}")
+
+    # Set up dataloaders explicitly
+    if hasattr(cfg.model, "train_ds"):
+        print(f"Setting up training data from: {cfg.model.train_ds.file_path}")
+        try:
+            model.setup_training_data(cfg.model.train_ds)
+            print("Training data setup successful")
+        except Exception as e:
+            print(f"Error setting up training data: {e}")
+
+    if hasattr(cfg.model, "validation_ds"):
+        print(f"Setting up validation data from: {cfg.model.validation_ds.file_path}")
+        try:
+            model.setup_validation_data(cfg.model.validation_ds)
+            print("Validation data setup successful")
+        except Exception as e:
+            print(f"Error setting up validation data: {e}")
+
+    if hasattr(cfg.model, "test_ds"):
+        print(f"Setting up test data from: {cfg.model.test_ds.file_path}")
+        try:
+            model.setup_test_data(cfg.model.test_ds)
+            print("Test data setup successful")
+        except Exception as e:
+            print(f"Error setting up test data: {e}")
+
+    # Try to verify dataloaders are created
+    print(f"Training dataloader: {model._train_dl is not None}")
+    print(f"Validation dataloader: {model._validation_dl is not None}")
+    print(f"Test dataloader: {model._test_dl is not None}")
+
+    # Add and enable the adapter
+    if hasattr(cfg, "adapter"):
+        adapter_cfg = cfg.adapter
+        model.add_adapter(adapter_cfg.name, adapter_cfg)
+        model.set_enabled_adapters(adapter_cfg.name, enabled=True)
+
+        # Freeze base model parameters
+        for name, param in model.named_parameters():
+            if "adapter" not in name:
+                param.requires_grad = False
 
     # Training
     logging.info("Starting training...")

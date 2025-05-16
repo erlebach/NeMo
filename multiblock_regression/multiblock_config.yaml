@@ -12,7 +12,7 @@ arch:
 
 # Model IO parameters
 io:
-  nemo_path: null  # path to save .nemo file
+  nemo_path: multiblock_base.nemo  # path to save .nemo file
   restore_path: null  # path to restore model from
 
 # Dataset configurations

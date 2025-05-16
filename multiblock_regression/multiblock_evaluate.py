@@ -9,7 +9,7 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
 
-@hydra_runner(config_path="conf", config_name="multiblock_evaluate_config")
+@hydra_runner(config_path=".", config_name="multiblock_evaluate_config")
 def main(cfg: DictConfig) -> None:
     """Main evaluation function.
     
