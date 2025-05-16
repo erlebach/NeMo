@@ -1,0 +1,27 @@
+name: MultiBlockRegressorModel_Evaluate
+
+# Add this arch section to match the structure expected by MultiBlockRegressorModel.__init__
+arch:
+  input_dim: 1
+  hidden_dim: 16
+  output_dim: 1
+  num_blocks: 2
+  num_layers_per_block: 2
+  activation: "tanh"
+
+model:
+  # Paths for model loading
+  base_model_path: "multiblock_base.nemo"     # path to base model
+  adapter_model_path: "multiblock_adapter.nemo"  # path to adapter model
+
+evaluation:
+  # Parameters for evaluation
+  phase_shift: 0.5  # Phase shift used for the adapted model
+  output_figure: "lora_adaptation.png"  # Where to save the comparison plot
+
+hydra:
+  run:
+    dir: .
+  job_logging:
+    root:
+      handlers: null
