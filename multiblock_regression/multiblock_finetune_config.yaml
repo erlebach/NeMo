@@ -1,0 +1,83 @@
+name: MultiBlockRegressorModel_Finetune
+do_training: true
+
+model:
+  input_dim: 1
+  hidden_dim: 16
+  output_dim: 1
+  num_blocks: 2
+  num_layers_per_block: 2
+  activation: "tanh"
+  
+  # Paths for model saving/loading
+  nemo_path: "multiblock_adapter.nemo"  # path to save fine-tuned model
+  restore_path: "multiblock_base.nemo"  # path to restore base model from
+  
+  train_ds:
+    file_path: "data/finetune/sine_train.npz"  # path to fine-tuning training data
+    batch_size: 32
+    num_workers: 0
+    pin_memory: false
+    
+  validation_ds:
+    file_path: "data/finetune/sine_val.npz"  # path to fine-tuning validation data
+    batch_size: 32
+    num_workers: 0
+    pin_memory: false
+    
+  test_ds:
+    file_path: "data/finetune/sine_test.npz"  # path to fine-tuning test data
+    batch_size: 32
+    num_workers: 0
+    pin_memory: false
+    
+  optim:
+    name: adam
+    lr: 0.001  # lower learning rate for fine-tuning
+    weight_decay: 0.0
+    
+    sched:
+      name: CosineAnnealing
+      T_max: 50
+      min_lr: 0.0001
+
+# Adapter configuration for fine-tuning
+adapter:
+  name: "lora_adapter"
+  dim: 8
+  alpha: 32
+  dropout: 0.1
+  target_blocks: [0, 1]  # Which blocks to apply adapters to (null for all blocks)
+
+trainer:
+  devices: 1
+  num_nodes: 1
+  max_epochs: 20  # fewer epochs for fine-tuning
+  precision: 32
+  accelerator: auto
+  strategy: auto
+  enable_checkpointing: true
+  logger: true
+  log_every_n_steps: 10
+  check_val_every_n_epoch: 1
+  benchmark: false
+
+exp_manager:
+  exp_dir: null  # default exp_dir is ./nemo_experiments
+  name: ${name}
+  create_tensorboard_logger: true
+  create_checkpoint_callback: true
+  checkpoint_callback_params:
+    monitor: val_loss
+    mode: min
+    save_top_k: 3
+    always_save_nemo: false
+  resume_if_exists: true
+  resume_ignore_no_checkpoint: true
+
+hydra:
+  run:
+    dir: .
+  job_logging:
+    root:
+      handlers: null
