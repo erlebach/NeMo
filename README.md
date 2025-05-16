@@ -183,7 +183,7 @@ NVIDIA NeMo 2.0 introduces several significant improvements over its predecessor
 
 - **Python-Based Configuration** - NeMo 2.0 transitions from YAML files to a Python-based configuration, providing more flexibility and control. This shift makes it easier to extend and customize configurations programmatically.
 
-- **Modular Abstractions** - By adopting PyTorch Lightning’s modular abstractions, NeMo 2.0 simplifies adaptation and experimentation. This modular approach allows developers to more easily modify and experiment with different components of their models.
+- **Modular Abstractions** - By adopting PyTorch Lightning's modular abstractions, NeMo 2.0 simplifies adaptation and experimentation. This modular approach allows developers to more easily modify and experiment with different components of their models.
 
 - **Scalability** - NeMo 2.0 seamlessly scaling large-scale experiments across thousands of GPUs using [NeMo-Run](https://github.com/NVIDIA/NeMo-Run), a powerful tool designed to streamline the configuration, execution, and management of machine learning experiments across computing environments.
 
@@ -515,7 +515,7 @@ branch](https://github.com/NVIDIA/NeMo/tree/gh-pages-src#readme).
         </a> (2023/11/28)
       </summary>
       NVIDIA NeMo Framework now empowers the Amazon Titan foundation models (FM) with efficient training of large language models (LLMs). 
-      The Titan FMs form the basis of Amazon’s generative AI service, Amazon Bedrock. 
+      The Titan FMs form the basis of Amazon's generative AI service, Amazon Bedrock. 
       The NeMo Framework provides a versatile framework for building, customizing, and running LLMs.
       <br><br>
     </details>
@@ -530,3 +530,162 @@ branch](https://github.com/NVIDIA/NeMo/tree/gh-pages-src#readme).
   AGREEMENT](https://www.nvidia.com/en-us/data-center/products/nvidia-ai-enterprise/eula/).
   By pulling and using the container, you accept the terms and
   conditions of this license.
+
+# MultiBlock Regressor with Adapters
+
+This project demonstrates how to implement parameter-efficient fine-tuning (PEFT) with adapters in a multi-block regressor model, following the NeMo framework pattern. The implementation provides a base model architecture that can be trained from scratch and then adapted to new tasks using LoRA (Low-Rank Adaptation) adapters.
+
+## Overview
+
+The repository includes:
+
+1. A `MultiBlockRegressor` class - a simple multi-block neural network architecture for regression tasks
+2. A `MultiBlockRegressorLora` adapter implementation that follows NeMo's PEFT pattern
+3. Utilities for generating sine wave datasets for demonstration
+
+## Files
+
+- `multiblock_regressor.py` - Main model without adapters
+- `multiblock_adapter.py` - Adapter implementation for PEFT
+- `sine_data_gen.py` - Utilities for generating training data
+
+## Installation
+
+Requires PyTorch, NeMo, and additional dependencies:
+
+```bash
+pip install torch
+pip install nemo_toolkit
+pip install matplotlib numpy jaxtyping
+```
+
+## Usage
+
+### 1. Generate Data
+
+First, generate the sine wave datasets:
+
+```bash
+python sine_data_gen.py
+```
+
+This creates:
+- `sine_data.npz` - Standard sine wave data for training the base model
+- `sine_data_modified.npz` - Phase-shifted sine wave data for adapter fine-tuning
+
+### 2. Train Base Model
+
+Train the base model on the standard sine wave:
+
+```bash
+python multiblock_regressor.py
+```
+
+This will:
+- Train a MultiBlockRegressor model on the standard sine wave data
+- Save the model weights to `base_multiblock_model.pt`
+- Generate loss curve plots
+
+### 3. Fine-tune with Adapters
+
+Fine-tune the base model on the modified sine wave using adapters:
+
+```bash
+python multiblock_adapter.py
+```
+
+This will:
+- Load the pre-trained base model
+- Apply LoRA adapters to the model
+- Train only the adapter parameters (a small fraction of the total parameters)
+- Generate comparison plots showing the adaptation performance
+
+## Architecture
+
+### MultiBlockRegressor
+
+The base model consists of:
+- Multiple residual blocks (ResidualMLP)
+- Each block contains multiple MLP layers
+- Residual connections between layers and blocks
+
+### Adapter Implementation
+
+The adapter implementation follows NeMo's PEFT pattern:
+- `MultiBlockRegressorLora` - Main PEFT implementation class
+- `ResidualMLPLoraWrapper` - Wrapper for residual MLP blocks
+- `MLPLoraWrapper` - Wrapper for MLP layers
+- `LinearAdapter` - Low-rank adapters for linear layers
+
+## Example Code
+
+### Training the Base Model
+
+```python
+from multiblock_regressor import MultiBlockRegressor
+import pytorch_lightning as pl
+
+# Create model
+model = MultiBlockRegressor(
+    input_dim=1,
+    hidden_dim=16,
+    output_dim=1,
+    num_blocks=2,
+    num_layers_per_block=2
+)
+
+# Create trainer and train
+trainer = pl.Trainer(max_epochs=10)
+trainer.fit(model, train_dataloader, val_dataloader)
+
+# Save model
+torch.save(model.state_dict(), "base_model.pt")
+```
+
+### Adding and Training Adapters
+
+```python
+from multiblock_adapter import MultiBlockRegressorLora, MultiBlockRegressorLoraConfig
+from multiblock_regressor import MultiBlockRegressor
+
+# Load base model
+base_model = MultiBlockRegressor(
+    input_dim=1,
+    hidden_dim=16,
+    output_dim=1,
+    num_blocks=2,
+    num_layers_per_block=2
+)
+base_model.load_state_dict(torch.load("base_model.pt"))
+
+# Configure and apply adapters
+lora_config = MultiBlockRegressorLoraConfig(
+    dim=8,
+    alpha=32,
+    dropout=0.1,
+    target_blocks=[0, 1]  # Apply to specific blocks, or None for all
+)
+lora = MultiBlockRegressorLora(lora_config)
+adapted_model = lora(base_model)
+
+# Freeze base model weights and train only adapter weights
+for name, param in adapted_model.named_parameters():
+    if 'adapter' not in name and 'lora_' not in name:
+        param.requires_grad = False
+
+# Train adapters
+trainer = pl.Trainer(max_epochs=5)
+trainer.fit(adapted_model, train_dataloader_new_task, val_dataloader_new_task)
+```
+
+## Extending to Larger Models
+
+This pattern can be extended to larger models like transformers:
+
+1. Create adapter-compatible versions of your model components
+2. Use the PEFT mixin to apply adapters selectively
+3. Train only the adapter parameters (typically <1% of model size)
+
+## Acknowledgments
+
+This implementation is inspired by NeMo's adapter and PEFT pattern, which provides a scalable approach to parameter-efficient fine-tuning of large models.
