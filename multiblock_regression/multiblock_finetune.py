@@ -1,11 +1,13 @@
 # multiblock_finetune.py
 import os
+import sys
+from pathlib import Path
 
 import lightning.pytorch as pl
 import numpy as np
 import torch
 import torch.nn as nn
-from multiblock_adapter import MultiBlockRegressorModel
+from multiblock_regression.multiblock_adapter import MultiBlockRegressorModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -44,6 +46,7 @@ def prepare_finetune_data(
     os.makedirs("data/finetune", exist_ok=True)
 
     # Generate data
+    # Same sine wave for all three, different noise
     x_train, y_train = create_modified_sine_data(n=train_size, noise=noise, phase=phase)
     x_val, y_val = create_modified_sine_data(n=val_size, noise=noise, phase=phase)
     x_test, y_test = create_modified_sine_data(n=test_size, noise=noise, phase=phase)
@@ -68,7 +71,8 @@ def main(cfg: DictConfig) -> None:
     logging.info(f"Config:\n{OmegaConf.to_yaml(cfg)}")
 
     # Check if fine-tuning data needs to be prepared
-    if not os.path.exists("data/finetune/sine_train.npz"):
+    # if not os.path.exists("data/finetune/sine_train.npz"):
+    if not Path("data/finetune/sine_train.npz").exists():
         logging.info("Fine-tuning data files not found. Creating datasets...")
         prepare_finetune_data()
 
@@ -80,9 +84,6 @@ def main(cfg: DictConfig) -> None:
     model = MultiBlockRegressorModel.restore_from(
         restore_path=cfg.model.restore_path, trainer=trainer
     )
-
-    # Debug print
-    print(f"Model restored from: {cfg.model.restore_path}")
 
     # Convert config to container and back to make it mutable
     model_cfg = OmegaConf.create(OmegaConf.to_container(model.cfg, resolve=True))

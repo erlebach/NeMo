@@ -18,6 +18,8 @@ evaluation:
   # Parameters for evaluation
   phase_shift: 0.5  # Phase shift used for the adapted model
   output_figure: "lora_adaptation.png"  # Where to save the comparison plot
+  original_data_path: "data/base/sine_test.npz" # Path to the original noisy data (assuming test set)
+  finetune_data_path: "data/finetune/sine_test.npz" # Path to the finetuned noisy data (assuming test set)
 
 hydra:
   run:
